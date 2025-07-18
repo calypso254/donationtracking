@@ -43,13 +43,20 @@
             text-align: center;
             transition: background-color 0.2s;
             cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         .btn-primary {
             background-color: #4f46e5;
             color: white;
         }
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background-color: #4338ca;
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
         .btn-secondary {
             background-color: #e5e7eb;
@@ -65,6 +72,36 @@
         }
         .btn-danger:hover {
             background-color: #dc2626;
+        }
+        .loader {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #4f46e5;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .message-box {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1.5rem;
+            text-align: center;
+            font-weight: 500;
+        }
+        .message-success {
+            background-color: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+        }
+        .message-error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
         }
     </style>
 </head>
@@ -124,11 +161,11 @@
                     </div>
                     <div>
                         <label for="promoFee" class="form-label">Promotional Fee ($)</label>
-                        <input type="number" id="promoFee" name="promoFee" class="form-input cost-input" placeholder="e.g., Logo on flyer" min="0" step="0.01">
+                        <input type="number" id="promoFee" name="promoFee" class="form-input cost-input" placeholder="0.00" min="0" step="0.01">
                     </div>
                     <div>
                         <label for="otherFee" class="form-label">Other Fees ($)</label>
-                        <input type="number" id="otherFee" name="otherFee" class="form-input cost-input" placeholder="e.g., Booth space" min="0" step="0.01">
+                        <input type="number" id="otherFee" name="otherFee" class="form-input cost-input" placeholder="0.00" min="0" step="0.01">
                     </div>
                 </div>
                  <div class="text-right mt-6">
@@ -154,8 +191,12 @@
             </div>
 
             <div class="mt-8 text-center">
-                <button type="submit" class="btn btn-primary w-full md:w-auto">Submit Donation Record</button>
+                <button type="submit" id="submitBtn" class="btn btn-primary w-full md:w-auto">
+                    <span id="submitBtnText">Submit Donation Record</span>
+                    <div id="submitLoader" class="loader hidden"></div>
+                </button>
             </div>
+            <div id="messageContainer" class="mt-4"></div>
         </form>
     </div>
 
@@ -163,6 +204,15 @@
         document.addEventListener('DOMContentLoaded', function() {
             const productLinesContainer = document.getElementById('product-lines-container');
             const addProductBtn = document.getElementById('addProductBtn');
+            const form = document.getElementById('donationForm');
+            const submitBtn = document.getElementById('submitBtn');
+            const submitBtnText = document.getElementById('submitBtnText');
+            const submitLoader = document.getElementById('submitLoader');
+            const messageContainer = document.getElementById('messageContainer');
+
+            // The URL for the Google Apps Script Web App
+            const scriptURL = 'https://script.google.com/macros/s/AKfycbw7-VMVWatm7gk3mQngazbyQDq0qwXjcG99UopiZUQLp-Y5ApvnPPlnN6PhgRNNE5V8/exec'; 
+
             let productLineIndex = 0;
 
             function addProductLine() {
@@ -171,15 +221,15 @@
                     <div class="product-line grid grid-cols-1 sm:grid-cols-12 gap-4 items-center mb-4" data-index="${productLineIndex}">
                         <div class="sm:col-span-4">
                             <label class="form-label sm:hidden">Product Name</label>
-                            <input type="text" name="productName_${productLineIndex}" class="form-input" placeholder="Product Name / SKU" required>
+                            <input type="text" name="productName" class="form-input" placeholder="Product Name / SKU" required>
                         </div>
                         <div class="sm:col-span-2">
                              <label class="form-label sm:hidden">Quantity</label>
-                            <input type="number" name="quantity_${productLineIndex}" class="form-input product-quantity" placeholder="Qty" min="1" required>
+                            <input type="number" name="quantity" class="form-input product-quantity" placeholder="Qty" min="1" required>
                         </div>
                         <div class="sm:col-span-2">
                             <label class="form-label sm:hidden">Cost/Unit</label>
-                            <input type="number" name="cost_${productLineIndex}" class="form-input product-cost" placeholder="Cost/Unit" min="0" step="0.01" required>
+                            <input type="number" name="cost" class="form-input product-cost" placeholder="Cost/Unit" min="0" step="0.01" required>
                         </div>
                         <div class="sm:col-span-3 text-right">
                             <span class="text-gray-500">Line Total: $</span>
@@ -202,10 +252,9 @@
                 }
             });
             
-            document.getElementById('donationForm').addEventListener('input', updateTotals);
+            form.addEventListener('input', updateTotals);
 
             function updateTotals() {
-                // Calculate Product Subtotal
                 let productSubtotal = 0;
                 document.querySelectorAll('.product-line').forEach(line => {
                     const quantity = parseFloat(line.querySelector('.product-quantity').value) || 0;
@@ -216,29 +265,105 @@
                 });
                 document.getElementById('productSubtotal').textContent = productSubtotal.toFixed(2);
 
-                // Calculate Associated Costs Subtotal
                 let associatedCostSubtotal = 0;
                 document.querySelectorAll('.cost-input').forEach(input => {
                     associatedCostSubtotal += parseFloat(input.value) || 0;
                 });
                 document.getElementById('associatedCostSubtotal').textContent = associatedCostSubtotal.toFixed(2);
                 
-                // Calculate Grand Total
                 const grandTotal = productSubtotal + associatedCostSubtotal;
                 document.getElementById('grandTotal').textContent = `$${grandTotal.toFixed(2)}`;
             }
             
-            // Add one product line to start
             addProductLine();
 
-            // Handle form submission
-            document.getElementById('donationForm').addEventListener('submit', function(e) {
+            form.addEventListener('submit', function(e) {
                 e.preventDefault();
-                // In a real application, you would gather the form data here and send it to a server or API.
-                // For now, we'll just log a success message.
-                alert('Form submitted successfully! (This is a demo)');
-                console.log('Form data would be processed here.');
+
+                setSubmitting(true);
+
+                const files = document.getElementById('fileUpload').files;
+                const filePromises = Array.from(files).map(file => {
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const fileData = {
+                                name: file.name,
+                                mimeType: file.type,
+                                data: e.target.result.split(',')[1] // Get base64 part
+                            };
+                            resolve(fileData);
+                        };
+                        reader.onerror = (error) => reject(error);
+                        reader.readAsDataURL(file);
+                    });
+                });
+
+                Promise.all(filePromises).then(fileDataArray => {
+                    const formData = {
+                        eventName: document.getElementById('eventName').value,
+                        eventDate: document.getElementById('eventDate').value,
+                        eventOrganizer: document.getElementById('eventOrganizer').value,
+                        contactPerson: document.getElementById('contactPerson').value,
+                        shippingCost: document.getElementById('shippingCost').value,
+                        promoFee: document.getElementById('promoFee').value,
+                        otherFee: document.getElementById('otherFee').value,
+                        productSubtotal: document.getElementById('productSubtotal').textContent,
+                        associatedCostSubtotal: document.getElementById('associatedCostSubtotal').textContent,
+                        grandTotal: document.getElementById('grandTotal').textContent.replace('$', ''),
+                        products: [],
+                        files: fileDataArray
+                    };
+
+                    document.querySelectorAll('.product-line').forEach(line => {
+                        formData.products.push({
+                            name: line.querySelector('[name="productName"]').value,
+                            quantity: line.querySelector('[name="quantity"]').value,
+                            cost: line.querySelector('[name="cost"]').value
+                        });
+                    });
+                    
+                    fetch(scriptURL, {
+                        method: 'POST',
+                        mode: 'cors',
+                        cache: 'no-cache',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Required for Apps Script
+                        body: JSON.stringify(formData)
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showMessage('success', 'Success! Your donation record has been saved.');
+                            form.reset();
+                            productLinesContainer.innerHTML = '';
+                            addProductLine();
+                            updateTotals();
+                        } else {
+                            throw new Error(data.message);
+                        }
+                    })
+                    .catch(error => {
+                        showMessage('error', `An error occurred: ${error.message}`);
+                        console.error('Error!', error.message);
+                    })
+                    .finally(() => {
+                        setSubmitting(false);
+                    });
+                });
             });
+
+            function setSubmitting(isSubmitting) {
+                submitBtn.disabled = isSubmitting;
+                submitBtnText.classList.toggle('hidden', isSubmitting);
+                submitLoader.classList.toggle('hidden', !isSubmitting);
+            }
+
+            function showMessage(type, message) {
+                messageContainer.innerHTML = `<div class="message-box message-${type}">${message}</div>`;
+                setTimeout(() => {
+                    messageContainer.innerHTML = '';
+                }, 5000);
+            }
         });
     </script>
 </body>
