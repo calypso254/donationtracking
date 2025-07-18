@@ -24,14 +24,15 @@
             margin-bottom: 0.5rem;
             display: block;
         }
-        .form-input {
+        .form-input, .form-select {
             width: 100%;
             border-radius: 0.5rem;
             border: 1px solid #d1d5db;
             padding: 0.75rem 1rem;
             transition: border-color 0.2s, box-shadow 0.2s;
+            background-color: white;
         }
-        .form-input:focus {
+        .form-input:focus, .form-select:focus {
             outline: none;
             border-color: #4f46e5;
             box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
@@ -126,6 +127,14 @@
                         <input type="date" id="eventDate" name="eventDate" class="form-input" required>
                     </div>
                     <div>
+                        <label for="donationType" class="form-label">Donation Type</label>
+                        <select id="donationType" name="donationType" class="form-select" required>
+                            <option value="" disabled selected>Select a type...</option>
+                            <option value="Marketing Swag (Private Event)">Marketing Swag (Private Event)</option>
+                            <option value="Charitable Donation">Charitable Donation</option>
+                        </select>
+                    </div>
+                    <div>
                         <label for="eventOrganizer" class="form-label">Event Organizer / Organization</label>
                         <input type="text" id="eventOrganizer" name="eventOrganizer" class="form-input" placeholder="e.g., Innovate Corp">
                     </div>
@@ -142,9 +151,7 @@
                     <h2 class="text-xl font-bold text-gray-700">1. Donated Products (Cost of Goods)</h2>
                     <button type="button" id="addProductBtn" class="btn btn-secondary text-sm">+ Add Product</button>
                 </div>
-                <div id="product-lines-container">
-                    <!-- Product line will be inserted here by JS -->
-                </div>
+                <div id="product-lines-container"></div>
                 <div class="text-right mt-6">
                     <span class="text-lg font-semibold text-gray-700">Product Subtotal: $</span>
                     <span id="productSubtotal" class="text-lg font-bold text-indigo-600">0.00</span>
@@ -210,7 +217,6 @@
             const submitLoader = document.getElementById('submitLoader');
             const messageContainer = document.getElementById('messageContainer');
 
-            // The URL for the Google Apps Script Web App
             const scriptURL = 'https://script.google.com/macros/s/AKfycbw7-VMVWatm7gk3mQngazbyQDq0qwXjcG99UopiZUQLp-Y5ApvnPPlnN6PhgRNNE5V8/exec'; 
 
             let productLineIndex = 0;
@@ -279,7 +285,6 @@
 
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
-
                 setSubmitting(true);
 
                 const files = document.getElementById('fileUpload').files;
@@ -290,7 +295,7 @@
                             const fileData = {
                                 name: file.name,
                                 mimeType: file.type,
-                                data: e.target.result.split(',')[1] // Get base64 part
+                                data: e.target.result.split(',')[1]
                             };
                             resolve(fileData);
                         };
@@ -303,6 +308,7 @@
                     const formData = {
                         eventName: document.getElementById('eventName').value,
                         eventDate: document.getElementById('eventDate').value,
+                        donationType: document.getElementById('donationType').value, // <-- NEW FIELD
                         eventOrganizer: document.getElementById('eventOrganizer').value,
                         contactPerson: document.getElementById('contactPerson').value,
                         shippingCost: document.getElementById('shippingCost').value,
@@ -327,7 +333,7 @@
                         method: 'POST',
                         mode: 'cors',
                         cache: 'no-cache',
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Required for Apps Script
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify(formData)
                     })
                     .then(res => res.json())
